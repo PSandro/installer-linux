@@ -1,16 +1,17 @@
-package main_test
+package main
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/multiplay/go-ts3"
-	"github.com/pkg/errors"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"strings"
-	"testing"
 	"time"
+
+	ts3 "github.com/multiplay/go-ts3"
+	"github.com/pkg/errors"
 )
 
 const teamspeakCheckNickname = "SinusBot via Travis CI"
@@ -19,48 +20,48 @@ type instance struct {
 	UUID string `json:"uuid"`
 }
 
-func TestIsBotRunning(t *testing.T) {
+func isBotRunning() error {
 	if _, err := getBotID(); err != nil {
-		t.Fatalf("could not get botId: %v", err)
+		return errors.Wrap(err, "could not get botId")
 	}
+	return nil
 }
 
-func TestConnectToTeamspeak(t *testing.T) {
-	botId, err := getBotID()
+func canBotConnectToTeamspeak() error {
+	botID, err := getBotID()
 	if err != nil {
-		t.Fatalf("could not get botId: %v", err)
+		return errors.Wrap(err, "could not get botID")
 	}
 	pw, err := ioutil.ReadFile(".password")
 	if err != nil {
-		t.Fatalf("could not read password file")
+		return errors.Wrap(err, "could not read password file")
 	}
-	token, err := login("admin", string(pw), *botId)
+	token, err := login("admin", string(pw), *botID)
 	if err != nil {
-		t.Fatalf("could not get token: %v", err)
+		return errors.Wrap(err, "could not get token")
 	}
 	bots, err := getInstances(*token)
 	if err != nil {
-		t.Fatalf("could not get instances: %v", err)
+		return errors.Wrap(err, "could not get instances")
 	}
 	if err := changeSettings(bots[0].UUID, *token); err != nil {
-		t.Fatalf("could not change instance settings: %v", err)
+		return errors.Wrap(err, "could not change instance settings")
 	}
-	fmt.Println("Sleeping so that the bot will connect in this time to the server")
-	time.Sleep(5 * time.Second)
+	return nil
 }
 
-func TestIsBotOnTeamspeak(t *testing.T) {
+func isBotOnTeamspeak() error {
 	c, err := ts3.NewClient("julia.ts3index.com:10011")
 	if err != nil {
-		t.Fatalf("could not create new ts3 client: %v", err)
+		return errors.Wrap(err, "could not create new ts3 client")
 	}
 	defer c.Close()
 	if err := c.UsePort(1489); err != nil {
-		t.Fatalf("could not use port: %v", err)
+		return errors.Wrap(err, "could not use port")
 	}
 	clientList, err := c.Server.ClientList()
 	if err != nil {
-		t.Fatalf("could not get clientlist: %v", err)
+		return errors.Wrap(err, "could not get clientlist")
 	}
 	found := false
 	for _, client := range clientList {
@@ -70,8 +71,9 @@ func TestIsBotOnTeamspeak(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatal("no client found")
+		return errors.New("no client found")
 	}
+	return nil
 }
 
 func getInstances(token string) ([]instance, error) {
@@ -143,11 +145,11 @@ func getBotID() (*string, error) {
 	return &data.DefaultBotID, nil
 }
 
-func login(username, password, botId string) (*string, error) {
+func login(username, password, botID string) (*string, error) {
 	data, err := json.Marshal(map[string]string{
 		"username": username,
 		"password": password,
-		"botId":    botId,
+		"botId":    botID,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "could not marshal json")
@@ -163,4 +165,21 @@ func login(username, password, botId string) (*string, error) {
 		return nil, errors.Wrap(err, "could not decode json")
 	}
 	return &res.Token, nil
+}
+
+func main() {
+	fmt.Println("Checking if the bot is running...")
+	if err := isBotRunning(); err != nil {
+		log.Fatalf("Bot is not running: %v", err)
+	}
+	fmt.Println("Checking if the bot can connect to the teamspeak...")
+	if err := canBotConnectToTeamspeak(); err != nil {
+		log.Fatalf("Can't connect to the teamspeak server: %v", err)
+	}
+	fmt.Println("Sleeping so that the bot will connect in this time to the server")
+	time.Sleep(5 * time.Second)
+	fmt.Println("Checking if the bot is on the teamspeak")
+	if err := isBotOnTeamspeak(); err != nil {
+		log.Fatalf("Failed, bot is not on the teamspeak 3 server")
+	}
 }
