@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"os"
+	"os/exec"
 )
 
 const teamspeakCheckNickname = "SinusBot via Travis CI"
@@ -46,6 +48,10 @@ func TestConnectToTeamspeak(t *testing.T) {
 		t.Fatalf("could not change instance settings: %v", err)
 	}
 	fmt.Println("Sleeping so that the bot will connect in this time to the server")
+        cmd := exec.Command("journalctl", "-f", "-u", "sinusbot.service")
+        cmd.Stdout = os.Stdout
+        cmd.Stderr = os.Stderr
+        cmd.Run()
 	time.Sleep(5 * time.Second)
 }
 
